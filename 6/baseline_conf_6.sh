@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-#2018/02/28
+#2018/03/01
 
 function usage()
 {
@@ -27,19 +27,19 @@ case $1 in
          AUTOFIX=1
          ;;
      *)
-             usage
-             exit 1
-             ;;
+         usage
+         exit 1
+         ;;
 esac
 
 if [ -f /etc/redhat-release ]; then
 OSVERSION=`awk '{ print $(NF-1) }' /etc/redhat-release  |awk -F"." '{print $1}'`
-    if [ "$OSVERSION" -ne 7 ]; then
-      echo -e "[31mPlease check whether the OS version is RHEL7!!![0m"
+    if [ "$OSVERSION" -ne 6 ]; then
+      echo -e "[31mPlease check whether the OS version is RHEL6!!![0m"
       exit 1
     fi
 else
-    echo -e "[31mPlease check whether the OS version is RHEL7!!![0m"
+    echo -e "[31mPlease check whether the OS version is RHEL6!!![0m"
     exit 1
 fi
 
@@ -101,12 +101,12 @@ echo ""
 
 echo -e "[1mChecking password complexity starting ...[0m"
 CHECKERROR=0
-value=`gawk -F"pam_pwquality.so" '/pam_pwquality.so/{print  $2}' /etc/pam.d/system-auth-ac `
-new_val=`grep 'try_first_pass local_users_only retry=3 minlen=8 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1' /etc/pam.d/system-auth-ac `
+value=`gawk -F"pam_cracklib.so" '/pam_cracklib/{print  $2}' /etc/pam.d/system-auth-ac `
+new_val=`grep 'try_first_pass retry=3 minlen=8 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1' /etc/pam.d/system-auth-ac `
 if [ $? != 0 ]; then
-        echo -e "\t[31mpam_pwquality.so config: $value !!![0m"
+        echo -e "\t[31mpam_cracklib.so config: $value !!![0m"
         add_check_item_error
-        [ $AUTOFIX -ne 0 ] &&  sed -i "s/^[#]\{0,1\}password    requisite     pam_pwquality.so try_first_pass.*/password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 minlen=8 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1/g" /etc/pam.d/system-auth-ac  && echo -e "\t[32m==>fixed[0m"
+        [ $AUTOFIX -ne 0 ] &&  sed -i "s/^password    requisite     pam_cracklib.so try_first_pass.*/password    requisite     pam_cracklib.so try_first_pass retry=3 minlen=8 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1/g" /etc/pam.d/system-auth-ac  && echo -e "\t[32m==>fixed[0m"
 fi
 echo "[1mChecking password complexity done ![0m"
 add_check_item_total
@@ -150,7 +150,7 @@ value=`awk -F: '($3 == 0) { print $1 }' /etc/passwd |grep -v root`
                 do
                 echo -e "\t[31mUID 0 user is: $user !!![0m"
                 add_check_item_error
-                [ $AUTOFIX -ne 0 ] && /usr/sbin/usermod $user --force >/dev/null 2>&1   && echo -e "\t[32m==>fixed[0m"
+                [ $AUTOFIX -ne 0 ] && /usr/sbin/usermod -L $user --force >/dev/null 2>&1   && echo -e "\t[32m==>fixed[0m"
                 done
         fi
 
@@ -182,7 +182,7 @@ CHECKERROR=0
 for NAME in `cut -d: -f1 /etc/passwd`
     do
         MyUID=`id -u $NAME`
-        if [ $MyUID -ge 1000 -a $NAME != 'nfsnobody' -a $NAME != 'admin' ]; then
+        if [ $MyUID -ge 500 -a $NAME != 'nfsnobody' -a $NAME != 'admin' ]; then
              value=`chage -l $NAME 2>/dev/null | egrep  "Maximum" | awk -F: '{print $2}'`
              if [ $value  != "90" ] ; then
                 echo -e "\t[31mUser $NAME not have the limited expire peirod[0m" 
@@ -229,7 +229,7 @@ for NAME in `cut -d: -f1 /etc/passwd`
         MyUID=`id -u $NAME`
         value=`/usr/bin/passwd -S "$NAME" 2>/dev/null |grep "in use"` 
         ulock=$?
-        if [ $MyUID -lt 1000 -a $NAME != 'root' -a $ulock -eq 0 ]; then
+        if [ $MyUID -lt 500 -a $NAME != 'root' -a $ulock -eq 0 ]; then
             echo -e "\t[31mUser: $NAME   \tis a system account, but not Locked it [0m"
             add_check_item_error
             [ $AUTOFIX -ne 0 ] && usermod -L -s /dev/null $NAME && echo -e "\t[32m==>fixed[0m" 
@@ -244,15 +244,20 @@ echo ""
 # Check service is exsit or stopped
 echo "[1mChecking any forbid services starting ...[0m"
 CHECKERROR=0
-for service in autofs dnsmasq firewalld rhnsd rhsmcertd  bluetooth cups-browsed cups postfix ModemManager rpcbind rpc-statd nfs-server nfs-idmapd nfs-config nfs-mountd upower gssproxy gdm avahi-daemon dmraid-activation firstboot-graphical iscsid libvirtd mdmonitor microcode qemu-guest-agent spice-vdagentd nfs-client.target zebra ypbind rlogin.socket rsh.socket rexec.socket xinetd
+for service in NetworkManager acpid autofs bluetooth cups dnsmasq firstboot iptables ip6tables postfix sendmail postgresql pppoe-server pcscd smb httpd  squid smartd spice-vdagentd rhnsd rhsmcertd wpa_supplicant winbind ypbind xinetd
 do
-value1=`systemctl is-enabled "$service" 2>/dev/null`
-value2=`systemctl is-active "$service" 2>/dev/null`
- [ "$value1" == "enabled" ] && echo -e "\t[31mservice :\t$service  \tis\tenabled[0m" && add_check_item_error
- [ "$value1" == "enabled" ] && [ $AUTOFIX -ne 0 ]  && systemctl disable $service 2> /dev/null   && echo -e "\t[32m==>fixed[0m"
- [ "$value2" == "active" ] && echo -e "\t[31mservice :\t$service  \tis\trunning[0m" &&  add_check_item_error
- [ "$value2" == "active" ] && [ $AUTOFIX -ne 0 ]  && systemctl stop $service >/dev/null 2>&1   && echo -e "\t[32m==>fixed[0m"
-
+value1=`service $service status 2>/dev/null`
+returnval=$?
+value2=`/sbin/chkconfig --list $service 2>/dev/null | grep -w -q on`
+switch=$?
+if [ $returnval -eq 0  -o  $switch -eq 0  ]; then
+     echo -e "\t[31mservice :\t$service    \tis\trunning,[0m"
+     add_check_item_error
+   if [ $AUTOFIX -ne 0 ]; then
+        /sbin/chkconfig --level 2345 $service off >/dev/null 2>&1
+        /sbin/service $service  stop >/dev/null 2>&1  && echo -e "\t[32m==>fixed[0m"
+   fi
+fi
 done
 echo "[1mChecking any forbid services done ! [0m"
 add_check_item_total
@@ -305,7 +310,7 @@ value=`grep '^HISTSIZE' /etc/profile.d/myhistory.sh |gawk -F'=' '{print $2 }'`
 if [ $value != 2000 ]; then
         echo -e "\t[31mHISTSIZE config is: $value !!![0m"
         add_check_item_error
-        [ $AUTOFIX -ne 0 ] && echo "export HISTSIZE=2000" >> /etc/profile.d/myhistory.sh && echo -e "\t[32m==>fixed[0m"
+        [ $AUTOFIX -ne 0 ] && sed -i "s/^HISTSIZE=.*/HISTSIZE=2000/g" /etc/profile.d/myhistory.sh  && echo -e "\t[32m==>fixed[0m"
 fi
 echo "[1mChecking histsize done ![0m "
 add_check_item_total
@@ -363,25 +368,26 @@ echo ""
 #Check control-alt-delete keyboard shortcuts
 echo "[1mChecking CTL+ALT-DEL keyboard shortcuts ...[0m"
 CHECKERROR=0
-value=`systemctl is-enabled ctrl-alt-del.target`
-if [ "$value" != "masked" ]; then
+value=` grep 'exec /usr/bin/logger -p kern.warn -t init "Ctrl-Alt-Del was pressed and ignored"' /etc/init/control-alt-delete.override `
+if [ $? != 0 ]; then
         echo -e "\t[31mControl-alt-delete keyboard shortcuts is enable !!![0m"
         add_check_item_error
-        [ $AUTOFIX -ne 0 ] && systemctl mask ctrl-alt-del.target >/dev/null 2>&1   && echo -e "\t[32m==>fixed[0m"
+        [ $AUTOFIX -ne 0 ] && echo 'exec /usr/bin/logger -p kern.warn -t init "Ctrl-Alt-Del was pressed and ignored"' >> /etc/init/control-alt-delete.override  && echo -e "\t[32m==>fixed[0m"
 fi
 echo "[1mChecking CTL+ALT-DEL keyboard shortcuts done ![0m"
 add_check_item_total
 add_check_item_failed
 echo ""
 
+
 #Check runlevel
 echo "[1mChecking runlevel starting ...[0m"
 CHECKERROR=0
-value=`systemctl get-default`
-if [ $value != multi-user.target ]; then
-   echo -e  "\t[31mSystem runlevel is : $value[0m"
+value=`grep initdefault:  /etc/inittab |awk -F: '{ print $2}'`
+if [ $value != 3 ]; then
+   echo -e "\t[31mSystem runlevel is : $value[0m"
    add_check_item_error
-   [ $AUTOFIX -ne 0 ] && systemctl set-default multi-user.target >/dev/null 2>&1   && echo -e "\t[32m==>fixed[0m" 
+   [ $AUTOFIX -ne 0 ] && sed -i 's/^id:.*/id:3:initdefault:/g' /etc/inittab  && echo -e "\t[32m==>fixed[0m" 
 fi
 echo "[1mChecking runlevel done ![0m"
 add_check_item_total
@@ -525,6 +531,7 @@ file_permission_check /etc/group "-rw-r--r--" 644
 file_permission_check /etc/shadow "----------" 000
 file_permission_check /etc/gshadow "----------" 000
 file_permission_check /etc/hosts "-rw-rw-r--" 664
+file_permission_check /etc/inittab "-rw-------" 600
 file_permission_check /etc/sysctl.conf "-rw-r--r--" 644
 file_permission_check /etc/crontab  "-r--------" 400
 file_permission_check /etc/securetty "-r--------" 400
@@ -550,11 +557,13 @@ else
      echo -e "\tError occur when ls $1"
 fi
 }
+
 file_owner_check /etc/passwd "root:root"
 file_owner_check /etc/group "root:root"
 file_owner_check /etc/shadow "root:root"
 file_owner_check /etc/gshadow "root:root"
 file_owner_check /etc/hosts "root:root"
+file_owner_check /etc/inittab "root:root"
 file_owner_check /etc/sysctl.conf "root:root"
 file_owner_check /etc/crontab  "root:root"
 file_owner_check /etc/securetty  "root:root"
@@ -593,15 +602,15 @@ if [ $value -ne $2 ]; then
                 echo -e "\t\tChange kernel parameter in /proc"
                 /sbin/sysctl -q -w $1=$2
                 echo -e "\t\t[32m==>fixed[0m"
-                echo -e "\t\tChange kernel parameter in /etc/sysctl.d/mynetwork.conf"
-                grep -q "$1" /etc/sysctl.d/mynetwork.conf
+                echo -e "\t\tChange kernel parameter in /etc/sysctl.d/mysysctl.conf"
+                grep -q "$1" /etc/sysctl.d/mysysctl.conf
                 if [ $? -eq 0 ]; then
-                        sed -ri "/$1/c "$1" = $2"       /etc/sysctl.d/mynetwork.conf
+                        sed -ri "/$1/c "$1" = $2"       /etc/sysctl.d/mysysctl.conf
                 else
-                        echo "$1 = $2 " >> /etc/sysctl.d/mynetwork.conf
+                        echo "$1 = $2 " >> /etc/sysctl.d/mysysctl.conf
                 fi
                 echo -e "\t\t[32m==>fixed[0m"
-               # echo "Please check with sysctl -a | grep $1 and /etc/sysctl.d/mynetwork.conf to confirm"
+               # echo "Please check with sysctl -a | grep $1 and /etc/sysctl.conf to confirm"
         fi
 fi
 }
@@ -635,12 +644,11 @@ value=`grep  "pam_wheel.so use_uid root_only" /etc/pam.d/su `
 if [ $? != 0 ]; then
         echo -e "\t[31mlimitsuroot is not config !!![0m"
         add_check_item_error
-        [ $AUTOFIX -ne 0 ] && sed -i 's/^[#]\{0,1\}auth\t\trequired\tpam_wheel.so use_uid.*/auth\t\trequired\tpam_wheel.so use_uid root_only/' /etc/pam.d/su && echo "SU_WHEEL_ONLY yes" >> /etc/login.defs  && echo -e "\t[32m==>fixed[0m"
+        [ $AUTOFIX -ne 0 ] && sed -i 's/^[#]\{0,1\}auth\t\trequired\tpam_wheel.so use_uid.*/auth\t\trequired\tpam_wheel.so use_uid root_only/' /etc/pam.d/su  && echo "SU_WHEEL_ONLY yes" >> /etc/login.defs && echo -e "\t[32m==>fixed[0m"
 fi
 echo "[1mChecking /etc/pam.d/su done![0m"
 add_check_item_total
 add_check_item_failed
 echo ""
-
 
 echo "[1;32mTotal checked item : [$CHECKTOTAL], Failed item : [$CHECKFAILED] [0m"
