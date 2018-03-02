@@ -141,7 +141,7 @@ bond_config_file="/etc/sysconfig/network-scripts/ifcfg-$bond_name"
 echo $bond_config_file
 if [ -f $bond_config_file ]; then
     echo "Backup original $bond_config_file to bondhelper.$bond_name"
-    mv $bond_config_file /etc/sysconfig/network-scripts/bondhelper.$bond_name -f
+    mv $bond_config_file $NWIFILEPATH/backup/ifcfg-$bond_name.bak$(date +%y%m%d%H%M) -f
 fi
 
 if [ "static" == $network_type ]; then 
@@ -169,7 +169,7 @@ set_rhel7_ethx_config()  {
     eth_config_file="/etc/sysconfig/network-scripts/ifcfg-$eth_name"
     if [ -f $eth_config_file ]; then
         echo "Backup original $eth_config_file to bondhelper.$eth_name"
-        mv $eth_config_file /etc/sysconfig/network-scripts/bondhelper.$eth_name -f
+        mv $eth_config_file  $NWIFILEPATH/backup/ifcfg-$eth_name.bak$(date +%y%m%d%H%M) -f
     fi
 
     cat << EOF  > $eth_config_file
