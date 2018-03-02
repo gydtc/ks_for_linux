@@ -307,7 +307,7 @@ echo ""
 echo "[1mChecking histsize starting ...[0m"
 CHECKERROR=0
 value=`grep '^HISTSIZE' /etc/profile.d/myhistory.sh |gawk -F'=' '{print $2 }'`
-if [ $value != 2000 ]; then
+if [[ $value != 2000 ]]; then
         echo -e "\t[31mHISTSIZE config is: $value !!![0m"
         add_check_item_error
         [ $AUTOFIX -ne 0 ] && echo "export HISTSIZE=2000" >> /etc/profile.d/myhistory.sh && echo -e "\t[32m==>fixed[0m"
